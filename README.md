@@ -4,14 +4,19 @@ A sourcemod plugin for L4D2 that can print the ending stats crawl anytime during
 Mostly vibe-coded. I was annoyed how overall accuracy is affected negatively by melee usage. Melee weapons count negatively to the accuracy regardless of whether it was a kill or miss. This plugin only calculates accuracy from shots fired from guns.
 
 # Requirements
+- sourcemod
 - left4dhooks
 
 # Installation
-- addons > sourcemod > scripting
+- addons/sourcemod/scripting
 - Compile the .sp file by dragging the .sp file on top of the 'compile.exe'.
-- addons > sourcemod > scripting > compiled
+- addons/sourcemod/scripting/compiled
 - Take the newly created .smx file
-- Then place the .smx in the sourcemod > plugins folder
+- Then place the .smx in the sourcemod/plugins folder
+
+Alternatively, download the .zip in the release, drag and drop the scripting and plugins folders inside 'addons/sourcemod/' folder.
+
+'l4d2_match_stats.cfg' will be automatically created inside cfg/sourcemod folder.
 
 # Usage:
 Either use the chat or type in the console starting with 'say ':
@@ -37,10 +42,10 @@ l4d2_match_stats_name_rochelle "Rei'sen II"
 l4d2_match_stats_name_coach "Ringo"
 l4d2_match_stats_name_ellis "Seiran"
 
-l4d2_match_stats_name_bill "Yukari"
-l4d2_match_stats_name_zoey "Maribel"
-l4d2_match_stats_name_francis "Sumireko"
-l4d2_match_stats_name_louis "Renko"
+l4d2_match_stats_name_bill ""
+l4d2_match_stats_name_zoey ""
+l4d2_match_stats_name_francis ""
+l4d2_match_stats_name_louis ""
 
 // enable or disable logging to file. Appears in sourcemod/logs/match_stats folder
 l4d2_match_stats_log "1"
