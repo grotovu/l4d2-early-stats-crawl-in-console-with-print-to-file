@@ -126,6 +126,8 @@ int    g_iMapNum, g_iTotalMaps;
 int    g_iCampaignTime;
 int    g_iRestarts;
 
+bool g_bIsTransitionOrRestart = false;
+
 Handle g_hCampaignTimer;
 MatchStats g_Stats[MAXPLAYERS + 1];
 
@@ -143,14 +145,16 @@ int g_iWitchDamageAwarded[2048];
 
 ConVar g_hCvarLog, g_hCvarLogMode;
 
+float g_fLastGameTime;
+
 // ====================================================================================================
 //					PLUGIN INFO / START / END
 // ====================================================================================================
 public Plugin myinfo =
 {
-	name        = "[L4D2] Match Stats (Crawl Edition)",
-	author      = "Grotovu",
-	description = "Detailed Campaign Stats tracker in console.",
+	name        = "[L4D2] Match Stats",
+	author      = "EagleRaviOrange",
+	description = "Detailed Campaign Stats tracker in console with automatic print to file after end of chapter or finale.",
 	version     = PLUGIN_VERSION
 }
 
@@ -234,6 +238,7 @@ public void OnMapStart()
 	}
 	
 	g_hCampaignTimer = CreateTimer(1.0, Timer_CampaignTime, _, TIMER_REPEAT);
+	g_fLastGameTime = 0.0;
 }
 
 public void OnMapEnd()
@@ -256,13 +261,15 @@ public void OnEntityCreated(int entity, const char[] classname)
 
 void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 {
-	if (L4D_IsFirstMapInScenario())
+	if (!g_bIsTransitionOrRestart && L4D_IsFirstMapInScenario())
 	{
 		ResetAllStats();
 		g_iCampaignTime = 0;
 		g_iRestarts = 0;
 		for (int i = 0; i < 8; i++) g_SavedBotStats[i].Reset();
 	}
+
+	g_bIsTransitionOrRestart = false;
 
 	for (int i = 1; i <= MaxClients; i++)
 	{
@@ -285,11 +292,14 @@ void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 
 void Event_MissionLost(Event event, const char[] name, bool dontBroadcast)
 {
+	g_bIsTransitionOrRestart = true;
 	g_iRestarts++;
 }
 
 void Event_MapTransition(Event event, const char[] name, bool dontBroadcast)
 {
+	g_bIsTransitionOrRestart = true;
+
 	for (int i = 1; i <= MaxClients; i++) {
 		if (IsValidClient(i) && IsFakeClient(i) && GetClientTeam(i) == TEAM_SURVIVOR) {
 			int charID = GetEntProp(i, Prop_Send, "m_survivorCharacter");
@@ -301,11 +311,22 @@ void Event_MapTransition(Event event, const char[] name, bool dontBroadcast)
 }
 
 void Event_FinaleWin(Event event, const char[] name, bool dontBroadcast) {
-    WriteStatsToFile();
+	g_bIsTransitionOrRestart = true;
+	WriteStatsToFile();
 }
 
 Action Timer_CampaignTime(Handle timer)
 {
+	float fCurrentTime = GetGameTime();
+
+	if (fCurrentTime == g_fLastGameTime)
+		return Plugin_Continue;
+
+	g_fLastGameTime = fCurrentTime;
+
+	if (!L4D_HasAnySurvivorLeftSafeArea())
+		return Plugin_Continue;
+
 	g_iCampaignTime++;
 	return Plugin_Continue;
 }
@@ -411,7 +432,7 @@ void Event_PlayerHurt(Event event, const char[] name, bool dontBroadcast)
 				if (actualDmg > 0) 
 				{
 					g_Stats[attacker].tankDmg += actualDmg;
-					g_iTankLastHealth[victim] = currentHealth; // Update tracker for the next hit
+					g_iTankLastHealth[victim] = currentHealth;
 				}
 			}
 		}
@@ -592,7 +613,7 @@ Action CmdResetStats(int client, int args)
 	return Plugin_Handled;
 }
 
-// --- 1. SUMMARY REPORT ---
+// --- SUMMARY REPORT ---
 Action CmdReportStats(int client, int args) {
 	if (client > 0) {
 		InternalReportStats(client, null);
@@ -636,11 +657,12 @@ void InternalDetailedStats(int client, File hFile) {
 	PrintMVP(client, hFile, "Most SI Kills", 1);
 	PrintMVP(client, hFile, "Most Melee Kills", 2);
 	PrintMVP(client, hFile, "Most Tank Damage", 3);
-	PrintMVP(client, hFile, "Most Witch Damage", 4); 
+	PrintMVP(client, hFile, "Most Witch Damage", 4);
+	PrintMVP_Accuracy(client, hFile);
 	Out(client, hFile, "=================================================\n");
 }
 
-// --- 3. THE CRAWL ---
+// --- EARLY STATS CRAWL ---
 Action CmdEarlyStatsCrawl(int client, int args) {
 	if (client > 0) {
 		InternalEarlyCrawl(client, null);
@@ -891,19 +913,22 @@ void PrintMVP(int client, File hFile, const char[] title, int type) {
 	}
 }
 
-void PrintMVP_Accuracy(int client)
+void PrintMVP_Accuracy(int client, File hFile)
 {
 	int bestClient = 0;
 	float bestValue = 0.0;
 	for (int i = 1; i <= MaxClients; i++) {
+		// Only consider players who have fired at least 50 shots to prevent 100% luck stats
 		if (!IsValidSurvivor(i) || g_Stats[i].bulletsFired < 50) continue; 
+		
 		float acc = (float(g_Stats[i].bulletHits) / float(g_Stats[i].bulletsFired)) * 100.0;
 		if (acc > 100.0) acc = 100.0;
 		if (acc > bestValue) { bestValue = acc; bestClient = i; }
 	}
+	
 	if (bestClient > 0) {
 		char name[32]; GetCustomClientName(bestClient, name, sizeof(name));
-		PrintToConsole(client, "  %-20s: %s (%.1f%%)", "Best Accuracy", name, bestValue);
+		Out(client, hFile, "  %-20s: %s (%.1f%%)", "Best Accuracy", name, bestValue);
 	}
 }
 
