@@ -14,8 +14,6 @@ Mostly vibe-coded. I was annoyed how overall accuracy is affected negatively by 
 - Take the newly created .smx file
 - Then place the .smx in the sourcemod/plugins folder
 
-Alternatively, download the .zip in the release, drag and drop the scripting and plugins folders inside 'addons/sourcemod/' folder.
-
 'l4d2_match_stats.cfg' will be automatically created inside cfg/sourcemod folder.
 
 # Usage:
