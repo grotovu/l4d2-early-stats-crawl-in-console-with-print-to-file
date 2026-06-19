@@ -1,5 +1,6 @@
 /*
 *	Match Stats (For console use and print to file)
+*   Developed with the help of AI assistance.
 */
 
 #define PLUGIN_VERSION		"1.0.0"
