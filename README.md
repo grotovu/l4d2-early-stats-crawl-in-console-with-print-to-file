@@ -7,6 +7,9 @@ Mostly vibe-coded. I was annoyed how overall accuracy is affected negatively by 
 - sourcemod
 - left4dhooks
 
+**Optional:**
+- L4D2 Custom Survivor Bot Names: https://github.com/grotovu/L4D2-Custom-Survivor-Bot-Names
+
 # Installation
 - addons/sourcemod/scripting
 - Compile the .sp file by dragging the .sp file on top of the 'compile.exe'.
@@ -33,17 +36,6 @@ Caveats:
 ```
 // enables or disables the plugin
 l4d2_match_stats_allow "1"
-
-// names for each survivor if you play with skins and change their names. Leave blank for default survivor names.
-l4d2_match_stats_name_nick "Reisen"
-l4d2_match_stats_name_rochelle "Rei'sen II"
-l4d2_match_stats_name_coach "Ringo"
-l4d2_match_stats_name_ellis "Seiran"
-
-l4d2_match_stats_name_bill ""
-l4d2_match_stats_name_zoey ""
-l4d2_match_stats_name_francis ""
-l4d2_match_stats_name_louis ""
 
 // enable or disable logging to file. Appears in sourcemod/logs/match_stats folder
 l4d2_match_stats_log "1"
