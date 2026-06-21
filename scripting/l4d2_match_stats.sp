@@ -120,7 +120,6 @@ enum struct TankData
 //					GLOBALS
 // ====================================================================================================
 ConVar g_hCvarAllow, g_hCvarDifficulty;
-ConVar g_hCvarNames[8];
 
 bool   g_bLateLoad;
 int    g_iMapNum, g_iTotalMaps;
@@ -139,6 +138,9 @@ MatchStats g_SavedBotStats[8];
 // Shotgun & Accuracy Fix Trackers
 int g_iLastHitTick[MAXPLAYERS + 1];
 int g_iLastHeadshotTick[MAXPLAYERS + 1];
+
+// Friendly fire cooldown
+float g_fLastFFTime[MAXPLAYERS + 1][MAXPLAYERS + 1];
 
 // Pending Witch Damage
 int g_iWitchDmgTrack[2048][MAXPLAYERS + 1];
@@ -169,16 +171,6 @@ public void OnPluginStart()
 {
 	g_hCvarAllow = CreateConVar("l4d2_match_stats_allow", "1", "0=Plugin off, 1=Plugin on.", CVAR_FLAGS);
 	g_hCvarDifficulty = FindConVar("z_difficulty");
-	
-	// Custom Name Overrides
-	g_hCvarNames[0] = CreateConVar("l4d2_match_stats_name_nick", "", "Custom name for Nick", CVAR_FLAGS);
-	g_hCvarNames[1] = CreateConVar("l4d2_match_stats_name_rochelle", "", "Custom name for Rochelle", CVAR_FLAGS);
-	g_hCvarNames[2] = CreateConVar("l4d2_match_stats_name_coach", "", "Custom name for Coach", CVAR_FLAGS);
-	g_hCvarNames[3] = CreateConVar("l4d2_match_stats_name_ellis", "", "Custom name for Ellis", CVAR_FLAGS);
-	g_hCvarNames[4] = CreateConVar("l4d2_match_stats_name_bill", "", "Custom name for Bill", CVAR_FLAGS);
-	g_hCvarNames[5] = CreateConVar("l4d2_match_stats_name_zoey", "", "Custom name for Zoey", CVAR_FLAGS);
-	g_hCvarNames[6] = CreateConVar("l4d2_match_stats_name_francis", "", "Custom name for Francis", CVAR_FLAGS);
-	g_hCvarNames[7] = CreateConVar("l4d2_match_stats_name_louis", "", "Custom name for Louis", CVAR_FLAGS);
 	
 	AutoExecConfig(true, "l4d2_match_stats");
 
@@ -276,6 +268,10 @@ void Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
 	{
 		g_Stats[i].tankDmg = 0;
 		g_Stats[i].witchDmg = 0;
+		for (int j = 1; j <= MaxClients; j++)
+		{
+			g_fLastFFTime[i][j] = 0.0;
+		}
 	}
 
 	for (int i = 0; i < 8; i++)
@@ -325,8 +321,7 @@ Action Timer_CampaignTime(Handle timer)
 
 	g_fLastGameTime = fCurrentTime;
 
-	if (!L4D_HasAnySurvivorLeftSafeArea())
-		return Plugin_Continue;
+	// if (!L4D_HasAnySurvivorLeftSafeArea()) return Plugin_Continue;
 
 	g_iCampaignTime++;
 	return Plugin_Continue;
@@ -417,7 +412,15 @@ void Event_PlayerHurt(Event event, const char[] name, bool dontBroadcast)
 	if (IsValidSurvivor(victim))
 	{
 		g_Stats[victim].damageTaken += dmg;
-		if (IsValidSurvivor(attacker) && victim != attacker) g_Stats[attacker].friendlyFire++;
+		if (IsValidSurvivor(attacker) && victim != attacker)
+		{
+			float currentTime = GetGameTime();
+			if (currentTime - g_fLastFFTime[attacker][victim] > 0.5)
+			{
+				g_fLastFFTime[attacker][victim] = currentTime;
+				g_Stats[attacker].friendlyFire++;
+			}
+		}
 	}
 	else if (IsValidClient(victim) && GetClientTeam(victim) == TEAM_INFECTED && IsValidSurvivor(attacker))
 	{
@@ -763,32 +766,50 @@ bool IsGun(const char[] weapon)
 
 void GetCustomClientName(int client, char[] buffer, int maxlen)
 {
-	GetClientName(client, buffer, maxlen);
-	if (!IsClientInGame(client) || GetClientTeam(client) != TEAM_SURVIVOR) return;
+    GetClientName(client, buffer, maxlen);
+    if (!IsClientInGame(client) || GetClientTeam(client) != TEAM_SURVIVOR) return;
 
-	char model[128];
-	GetClientModel(client, model, sizeof(model));
+    char model[128];
+    GetClientModel(client, model, sizeof(model));
 
-	int character = -1;
-	if (StrContains(model, "gambler", false) != -1) character = 0;       // Nick
-	else if (StrContains(model, "producer", false) != -1) character = 1; // Rochelle
-	else if (StrContains(model, "coach", false) != -1) character = 2;    // Coach
-	else if (StrContains(model, "mechanic", false) != -1) character = 3; // Ellis
-	else if (StrContains(model, "namvet", false) != -1) character = 4;   // Bill
-	else if (StrContains(model, "teenangst", false) != -1) character = 5;// Zoey
-	else if (StrContains(model, "biker", false) != -1) character = 6;    // Francis
-	else if (StrContains(model, "manager", false) != -1) character = 7;  // Louis
-	else character = GetEntProp(client, Prop_Send, "m_survivorCharacter"); // Fallback
+    int character = -1;
+    char defaultName[32];
+    if (StrContains(model, "gambler", false) != -1) { character = 0; strcopy(defaultName, sizeof(defaultName), "Nick"); }
+    else if (StrContains(model, "producer", false) != -1) { character = 1; strcopy(defaultName, sizeof(defaultName), "Rochelle"); }
+    else if (StrContains(model, "coach", false) != -1) { character = 2; strcopy(defaultName, sizeof(defaultName), "Coach"); }
+    else if (StrContains(model, "mechanic", false) != -1) { character = 3; strcopy(defaultName, sizeof(defaultName), "Ellis"); }
+    else if (StrContains(model, "namvet", false) != -1) { character = 4; strcopy(defaultName, sizeof(defaultName), "Bill"); }
+    else if (StrContains(model, "teenangst", false) != -1) { character = 5; strcopy(defaultName, sizeof(defaultName), "Zoey"); }
+    else if (StrContains(model, "biker", false) != -1) { character = 6; strcopy(defaultName, sizeof(defaultName), "Francis"); }
+    else if (StrContains(model, "manager", false) != -1) { character = 7; strcopy(defaultName, sizeof(defaultName), "Louis"); }
+    else character = GetEntProp(client, Prop_Send, "m_survivorCharacter");
 
-	if (character >= 0 && character <= 7)
-	{
-		char custom[32];
-		g_hCvarNames[character].GetString(custom, sizeof(custom));
-		if (custom[0] != '\0')
-		{
-			strcopy(buffer, maxlen, custom);
-		}
-	}
+    if (character >= 0 && character <= 7)
+    {
+        char cvarName[64];
+        switch (character)
+        {
+            case 0: strcopy(cvarName, sizeof(cvarName), "l4d2_custom_bot_name_nick");
+            case 1: strcopy(cvarName, sizeof(cvarName), "l4d2_custom_bot_name_rochelle");
+            case 2: strcopy(cvarName, sizeof(cvarName), "l4d2_custom_bot_name_coach");
+            case 3: strcopy(cvarName, sizeof(cvarName), "l4d2_custom_bot_name_ellis");
+            case 4: strcopy(cvarName, sizeof(cvarName), "l4d2_custom_bot_name_bill");
+            case 5: strcopy(cvarName, sizeof(cvarName), "l4d2_custom_bot_name_zoey");
+            case 6: strcopy(cvarName, sizeof(cvarName), "l4d2_custom_bot_name_francis");
+            case 7: strcopy(cvarName, sizeof(cvarName), "l4d2_custom_bot_name_louis");
+        }
+        
+        ConVar cvar = FindConVar(cvarName);
+        if (cvar != null)
+        {
+            char custom[32];
+            cvar.GetString(custom, sizeof(custom));
+            if (custom[0] != '\0' && !StrEqual(custom, defaultName, false))
+            {
+                strcopy(buffer, maxlen, custom);
+            }
+        }
+    }
 }
 
 void PrintCrawlCategory(int client, File hFile, const char[] title, int type, bool low, bool pct) {
